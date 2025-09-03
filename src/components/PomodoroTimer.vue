@@ -16,8 +16,8 @@ const isRunning = ref(false)
 const pomodorosCompleted = ref(0)
 const intervalId = ref(null)
 
-// 页面可见性相关状态
-const lastUpdateTime = ref(null)
+// 基于目标时间的计时器状态
+const endTime = ref(null) // 计时结束的绝对时间
 
 // 计算显示时间
 const displayTime = computed(() => {
@@ -31,9 +31,23 @@ const switchMode = (mode) => {
   currentMode.value = mode
   timeLeft.value = mode.minutes * 60
   isRunning.value = false
+  endTime.value = null
   if (intervalId.value) {
     clearInterval(intervalId.value)
     intervalId.value = null
+  }
+}
+
+// 更新剩余时间（基于目标时间计算）
+const updateRemainingTime = () => {
+  if (endTime.value && isRunning.value) {
+    const now = Date.now()
+    const remaining = Math.max(0, Math.floor((endTime.value - now) / 1000))
+    timeLeft.value = remaining
+    
+    if (timeLeft.value <= 0) {
+      handleTimerEnd()
+    }
   }
 }
 
@@ -42,19 +56,16 @@ const toggleTimer = () => {
   isRunning.value = !isRunning.value
   
   if (isRunning.value) {
-    // 记录开始时间
-    lastUpdateTime.value = Date.now()
+    // 如果没有设置结束时间，则设置结束时间
+    if (!endTime.value) {
+      endTime.value = Date.now() + (timeLeft.value * 1000)
+    }
     
-    // 开始计时
-    intervalId.value = setInterval(() => {
-      if (timeLeft.value > 0) {
-        timeLeft.value--
-        lastUpdateTime.value = Date.now()
-      } else {
-        // 计时结束
-        handleTimerEnd()
-      }
-    }, 1000)
+    // 立即更新一次时间
+    updateRemainingTime()
+    
+    // 使用更频繁的更新（每100ms）以提高准确性
+    intervalId.value = setInterval(updateRemainingTime, 100)
   } else {
     // 暂停计时
     if (intervalId.value) {
@@ -68,6 +79,7 @@ const toggleTimer = () => {
 const resetTimer = () => {
   timeLeft.value = currentMode.value.minutes * 60
   isRunning.value = false
+  endTime.value = null
   if (intervalId.value) {
     clearInterval(intervalId.value)
     intervalId.value = null
@@ -86,6 +98,7 @@ const handleTimerEnd = () => {
   }
   
   isRunning.value = false
+  endTime.value = null
   
   // 更新完成的番茄钟数量
   if (currentMode.value === MODES.WORK) {
@@ -129,23 +142,15 @@ const playNotificationSound = () => {
 
 // 页面可见性变化处理
 const handleVisibilityChange = () => {
-  if (isRunning.value && document.visibilityState === 'hidden') {
-    // 页面隐藏时，记录当前时间
-    lastUpdateTime.value = Date.now()
-  } else if (isRunning.value && document.visibilityState === 'visible') {
-    // 页面重新可见时，计算离线时间并更新计时器
-    if (lastUpdateTime.value) {
-      const offlineTime = Math.floor((Date.now() - lastUpdateTime.value) / 1000)
-      if (offlineTime > 0) {
-        // 如果离线时间超过了剩余时间，则计时结束
-        if (offlineTime >= timeLeft.value) {
-          timeLeft.value = 0
-          handleTimerEnd()
-        } else {
-          // 否则减去离线时间
-          timeLeft.value -= offlineTime
-        }
+  if (isRunning.value) {
+    if (document.visibilityState === 'visible') {
+      // 页面重新可见时，重新启动计时器以确保准确性
+      if (intervalId.value) {
+        clearInterval(intervalId.value)
       }
+      intervalId.value = setInterval(updateRemainingTime, 100)
+    } else if (document.visibilityState === 'hidden') {
+      // 页面隐藏时，保持计时器运行（基于目标时间的计算不受影响）
     }
   }
 }
