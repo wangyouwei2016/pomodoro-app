@@ -16,6 +16,9 @@ const isRunning = ref(false)
 const pomodorosCompleted = ref(0)
 const intervalId = ref(null)
 
+// 页面可见性相关状态
+const lastUpdateTime = ref(null)
+
 // 计算显示时间
 const displayTime = computed(() => {
   const minutes = Math.floor(timeLeft.value / 60)
@@ -39,10 +42,14 @@ const toggleTimer = () => {
   isRunning.value = !isRunning.value
   
   if (isRunning.value) {
+    // 记录开始时间
+    lastUpdateTime.value = Date.now()
+    
     // 开始计时
     intervalId.value = setInterval(() => {
       if (timeLeft.value > 0) {
         timeLeft.value--
+        lastUpdateTime.value = Date.now()
       } else {
         // 计时结束
         handleTimerEnd()
@@ -120,11 +127,40 @@ const playNotificationSound = () => {
   }
 }
 
-// 组件卸载时清理定时器
+// 页面可见性变化处理
+const handleVisibilityChange = () => {
+  if (isRunning.value && document.visibilityState === 'hidden') {
+    // 页面隐藏时，记录当前时间
+    lastUpdateTime.value = Date.now()
+  } else if (isRunning.value && document.visibilityState === 'visible') {
+    // 页面重新可见时，计算离线时间并更新计时器
+    if (lastUpdateTime.value) {
+      const offlineTime = Math.floor((Date.now() - lastUpdateTime.value) / 1000)
+      if (offlineTime > 0) {
+        // 如果离线时间超过了剩余时间，则计时结束
+        if (offlineTime >= timeLeft.value) {
+          timeLeft.value = 0
+          handleTimerEnd()
+        } else {
+          // 否则减去离线时间
+          timeLeft.value -= offlineTime
+        }
+      }
+    }
+  }
+}
+
+// 组件挂载时添加事件监听器
+onMounted(() => {
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+// 组件卸载时清理定时器和事件监听器
 onUnmounted(() => {
   if (intervalId.value) {
     clearInterval(intervalId.value)
   }
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 
