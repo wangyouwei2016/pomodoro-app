@@ -1,0 +1,4 @@
+{
+  "buildImage": "docker.m.daocloud.io/library/node:22",
+  "installCommand": "npm i --force --registry=https://registry.npmmirror.com"
+}
