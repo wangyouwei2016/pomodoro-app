@@ -4,7 +4,7 @@ import PomodoroTimer from './components/PomodoroTimer.vue'
 
 <template>
   <div class="app-container">
-    <h1 class="app-title">番茄钟</h1>
+    <h1 class="app-title">番茄钟01</h1>
     <PomodoroTimer />
   </div>
 </template>
